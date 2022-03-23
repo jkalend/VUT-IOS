@@ -569,36 +569,34 @@ districts () {
             fi
 
             read -a CNT <<< $CHECKED
-            if [ "${string[5]}" == "" ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[5]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[5]}"
-                    CHECKED+=","
+            CHECK=0
+            for c in "${CNT[@]}"
+            do
+                if [ "$c" == "${string[5]}" ]; then
+                    CHECK=1
                 fi
+            done
 
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[5]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
+            if [ $CHECK -eq 0 ]; then
+                CHECKED+="${string[5]}"
+                CHECKED+=","
+            fi
 
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[5]}]=1
+            ADDED=false
+            for d in "${!COUNTRIES[@]}"
+            do
+                if [ $d == "${string[5]}" ]; then
+                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                    ADDED=true
+                    break
                 fi
+            done
 
+            if [ $ADDED == false ]; then
+                if [ "${string[5]}" == "" ]; then
+                    string[5]="None"
+                fi
+                COUNTRIES[${string[5]}]=1
             fi
 
         done
@@ -612,36 +610,34 @@ districts () {
             fi
 
             read -a CNT <<< $CHECKED
-            if [ "${string[5]}" == "" ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[5]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[5]}"
-                    CHECKED+=","
+            CHECK=0
+            for c in "${CNT[@]}"
+            do
+                if [ "$c" == "${string[5]}" ]; then
+                    CHECK=1
                 fi
+            done
 
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[5]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
+            if [ $CHECK -eq 0 ]; then
+                CHECKED+="${string[5]}"
+                CHECKED+=","
+            fi
 
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[5]}]=1
+            ADDED=false
+            for d in "${!COUNTRIES[@]}"
+            do
+                if [ $d == "${string[5]}" ]; then
+                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                    ADDED=true
+                    break
                 fi
+            done
 
+            if [ $ADDED == false ]; then
+                if [ "${string[5]}" == "" ]; then
+                    string[5]="None"
+                fi
+                COUNTRIES[${string[5]}]=1
             fi
         done <$file
     fi
@@ -665,36 +661,34 @@ regions () {
             fi
 
             read -a CNT <<< $CHECKED
-            if [ "${string[4]}" == "" ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[4]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[4]}"
-                    CHECKED+=","
+            CHECK=0
+            for c in "${CNT[@]}"
+            do
+                if [ "$c" == "${string[4]}" ]; then
+                    CHECK=1
                 fi
+            done
 
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[4]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
+            if [ $CHECK -eq 0 ]; then
+                CHECKED+="${string[4]}"
+                CHECKED+=","
+            fi
 
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[4]}]=1
+            ADDED=false
+            for d in "${!COUNTRIES[@]}"
+            do
+                if [ $d == "${string[4]}" ]; then
+                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                    ADDED=true
+                    break
                 fi
+            done
 
+            if [ $ADDED == false ]; then
+                if [ "${string[4]}" == "" ]; then
+                    string[4]="None"
+                fi
+                COUNTRIES[${string[4]}]=1
             fi
 
         done
@@ -708,36 +702,34 @@ regions () {
             fi
 
             read -a CNT <<< $CHECKED
-            if [ "${string[4]}" == "" ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[4]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[4]}"
-                    CHECKED+=","
+            CHECK=0
+            for c in "${CNT[@]}"
+            do
+                if [ "$c" == "${string[4]}" ]; then
+                    CHECK=1
                 fi
+            done
 
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[4]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
+            if [ $CHECK -eq 0 ]; then
+                CHECKED+="${string[4]}"
+                CHECKED+=","
+            fi
 
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[4]}]=1
+            ADDED=false
+            for d in "${!COUNTRIES[@]}"
+            do
+                if [ $d == "${string[4]}" ]; then
+                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                    ADDED=true
+                    break
                 fi
+            done
 
+            if [ $ADDED == false ]; then
+                if [ "${string[4]}" == "" ]; then
+                    string[4]="None"
+                fi
+                COUNTRIES[${string[4]}]=1
             fi
         done <$file
     fi
