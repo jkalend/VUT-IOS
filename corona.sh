@@ -43,6 +43,8 @@ declare -A FILTERS=(
     [width]=-1
 )
 
+declare -A COUNTRIES=()
+
 cross () { 
     case $COMMAND in
     0) none
@@ -84,22 +86,50 @@ cross () {
     fi
     
     ;;
-    5) exit 1;;
-    6) exit 1;;
-    7) exit 1;;
-    8) exit 1;;
-    9) exit 1;;
-    10) exit 1;;
-    *) exit 1 ;;
+    5) 
+    daily
+    ;;
+    6)
+    monthly
+    ;;
+    7)
+    yearly
+    ;;
+    8)
+    countries
+    for c in "${!COUNTRIES[@]}"; do
+        echo "$c: ${COUNTRIES[$c]}"
+    done
+    ;;
+    9)
+    districts
+    for c in "${!COUNTRIES[@]}"; do
+        echo "$c: ${COUNTRIES[$c]}"
+    done
+    ;;
+    10) 
+    regions
+    for c in "${!COUNTRIES[@]}"; do
+        echo "$c: ${COUNTRIES[$c]}"
+    done
+    ;;
+    *) 
+    echo "ERROR: Unknown command"
+    exit 1;;
 
     esac 
 
 }
 
-none () { 
+none () {
+    if [[ $file != "" && $COMMAND == 0 ]];
+    then
+    echo "ERROR" # TODO
+    exit 1
+    fi
     if [[ $file == "" ]]; 
     then
-   
+
         while read line; do  
         echo $line
         done
@@ -116,21 +146,12 @@ none () {
 infected () {
     if [[ $file == "" ]]; 
     then
-        COUNT=-1 
-    
-        while read line; do  
-    
-        COUNT=$((COUNT+1))
-        done
+        COUNT=$(grep -c ^)
+        COUNT=$((COUNT-1))
 
-    else
-        COUNT=-1 
-    
-        while read line; do  
-    
-        COUNT=$((COUNT+1))
-        done <$file
-
+    else 
+        COUNT=$(grep -c ^ $file)
+        COUNT=$((COUNT-1))
     fi
 
 }
@@ -145,11 +166,11 @@ gender () {
         while read line; do  
         
             read -a string <<< $line
-            if [ ${string[3]} == "pohlavi" ]; then
+            if [ "${string[3]}" == "pohlavi" ]; then
             continue
             fi
 
-            if [ ${string[3]} == "Z" ]; then
+            if [ "${string[3]}" == "Z" ]; then
             ZENY=$((ZENY+1))
             else
             MUZI=$((MUZI+1))
@@ -175,8 +196,6 @@ gender () {
 age () {
     
 
-    
-
     IFS=','
     local LOW=0
     local HIGH=5
@@ -198,7 +217,7 @@ age () {
 
             while ((HIGH <= 105)); do
                 if ((string[2] >= LOW && string[2] <= HIGH)); then
-                    AGE[$ORD]=$((AGE[$ORD]+1))
+                    AGE[$ORD]=$((AGE[ORD]+1))
                     break
                 else
                     if [ $LOW -eq 0 ]; then
@@ -232,7 +251,7 @@ age () {
 
             while ((HIGH <= 105)); do
                 if ((string[2] >= LOW && string[2] <= HIGH)); then
-                    AGE[$ORD]=$((AGE[$ORD]+1))
+                    AGE[$ORD]=$((AGE[ORD]+1))
                     break
                 else
                     if [ $LOW -eq 0 ]; then
@@ -254,8 +273,475 @@ age () {
     fi
 }
 
+daily () { 
+    # supports only 1 file
+    DAY=0
+    MONTH=0
+    YEAR=0
 
+    if [[ $file == "" ]];
+    then
+        while read line; do  
 
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            IFS='-'
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+                DAY=${date[2]}
+            fi
+
+            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ] && [ $DAY == ${date[2]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR-$MONTH-$DAY: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+                DAY=${date[2]}
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+                DAY=${date[2]}
+            fi
+
+            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ] && [ $DAY == ${date[2]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR-$MONTH-$DAY: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+                DAY=${date[2]}
+            fi
+
+        done <$file
+    fi
+    echo "$YEAR-$MONTH-$DAY: $OUT"
+}
+
+monthly () { 
+    MONTH=0
+    YEAR=0
+
+    if [[ $file == "" ]];
+    then
+        while read line; do  
+
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            IFS='-'
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+            fi
+
+            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR-$MONTH: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            IFS='-'
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+            fi
+
+            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR-$MONTH: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+                MONTH=${date[1]}
+            fi
+
+        done <$file
+    fi
+    echo "$YEAR-$MONTH: $OUT"
+}
+
+yearly() {
+    YEAR=0
+
+    if [[ $file == "" ]];
+    then
+        while read line; do  
+
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            IFS='-'
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+            fi
+
+            if [ $YEAR == ${date[0]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            IFS='-'
+            read -a date <<< "${string[1]}"
+            if [ $YEAR == 0 ]; then
+                YEAR=${date[0]}
+            fi
+
+            if [ $YEAR == ${date[0]} ]; then
+                OUT=$((OUT + 1))
+            else
+                echo "$YEAR: $OUT"
+                OUT=1
+                YEAR=${date[0]}
+            fi
+
+        done <$file
+    fi
+    echo "$YEAR: $OUT"
+}
+
+countries() {
+    CHECKED=""
+    CHECK=0
+    #COUNTRY=""
+    #DATA=$(cat -)
+
+    if [[ $file == "" ]];
+    then
+        while read line; do 
+
+            #echo "${COUNTRIES[@]}"
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[6]}" != 1 ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[7]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[7]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[7]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[7]}]=1
+                fi
+
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[6]}" != 1 ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[7]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[7]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[7]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[7]}]=1
+                fi
+
+            fi
+        done <$file
+    fi
+}
+
+districts () {
+    CHECKED=""
+    CHECK=0
+    #COUNTRY=""
+    #DATA=$(cat -)
+
+    if [[ $file == "" ]];
+    then
+        while read line; do 
+
+            #echo "${COUNTRIES[@]}"
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[5]}" == "" ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[5]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[5]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[5]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[5]}]=1
+                fi
+
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[5]}" == "" ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[5]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[5]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[5]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[5]}]=1
+                fi
+
+            fi
+        done <$file
+    fi
+}
+
+regions () {
+    CHECKED=""
+    CHECK=0
+    #COUNTRY=""
+    #DATA=$(cat -)
+
+    if [[ $file == "" ]];
+    then
+        while read line; do 
+
+            #echo "${COUNTRIES[@]}"
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[4]}" == "" ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[4]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[4]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[4]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[4]}]=1
+                fi
+
+            fi
+
+        done
+    else
+        while read line; do  
+        
+            IFS=','
+            read -a string <<< $line
+            if [ "${string[1]}" == "datum" ]; then
+            continue
+            fi
+
+            read -a CNT <<< $CHECKED
+            if [ "${string[4]}" == "" ]; then
+                continue
+            else
+                CHECK=0
+                for c in "${CNT[@]}"
+                do
+                    if [ $c == ${string[4]} ]; then
+                        CHECK=1
+                    fi
+                done
+
+                if [ $CHECK -eq 0 ]; then
+                    CHECKED+="${string[4]}"
+                    CHECKED+=","
+                fi
+
+                ADDED=false
+                for d in "${!COUNTRIES[@]}"
+                do
+                    if [ $d == ${string[4]} ]; then
+                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
+                        ADDED=true
+                        break
+                    fi
+                done
+
+                if [ $ADDED == false ]; then
+                    COUNTRIES[${string[4]}]=1
+                fi
+
+            fi
+        done <$file
+    fi
+}
 
 #look for help 
 while getopts :ha:b:g:s: options; do
@@ -352,7 +838,6 @@ if [[ $file == "" ]];
 then
 cross
 fi
-
 
 
 #infected $file
