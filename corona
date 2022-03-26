@@ -5,13 +5,17 @@ POSIXLY_CORRECT=yes
 
 # TODO: last filter, validate logs
 
-
+sizearg=0
 file=""
+FILE=""
 args=("$@")
 HEADPRINT=true
 COMMAND=0
 OUT=0
 COUNT=1212112212121212121212
+MUZI=0
+ZENY=0
+NONE=0
 declare -a AGE=(0 0 0 0 0 0 0 0 0 0 0 0 0)
 
 
@@ -35,7 +39,31 @@ declare -A FILTERS=(
     [width]=-1
 )
 
-declare -A COUNTRIES=()
+declare -A COUNTRIES
+
+# 6f4125cb-fb41-4fb0-a478-07b69ba106a4,2020-03-01,21,Z,CZ010,CZ0100,1,IT,1
+
+validate () {
+    #echo
+    #echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} {if (substr($2,6,2)=="03") {print substr($2,6,2)}}'
+    #pokus "${log[1]}"
+    valdate
+}
+# [0-9]{4}-[0]{1}[1-9]{1}-[0]{1}[1-9]{1}|[0-9]{4}-[0]{1}[1-9]{1}-[1]{1}[1-9]{1}|[0-9]{4}-[0]{1}[12-8]{1}-[1]{1}[1-9]{1}
+#^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
+valdate () { 
+
+    FILE=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0}; NR==1{print $0; next}  $2 !~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0 | "cat 1>&2"}
+    $2 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
+
+}
+
+pokus () { 
+    datum=$(date -d "$1" 2>/dev/null)
+    if [ "$?" -eq 1 ]; then
+        echo "$line" >&2
+    fi
+}
 
 cross () { 
     case $COMMAND in
@@ -44,66 +72,41 @@ cross () {
     ;;
     1)
         infected
-        OUT=$((COUNT + OUT))
-        if [ $PRINT == true ]; then
-        echo $OUT
-        fi
     ;;
     2) 
-        merge
+        echo -e "$FILE"
     ;;
     3) 
         gender
-        if [ $PRINT == true ]; then
-        echo "M: $MUZI"
-        echo "Z: $ZENY"
-        echo "None: $NONE"
-        fi
+        
     ;;
     4) 
         age
-        if [ $PRINT == true ]; then
-        echo "0-5   : ${AGE[0]}" 
-        echo "6-15  : ${AGE[1]}"
-        echo "16-25 : ${AGE[2]}"
-        echo "26-35 : ${AGE[3]}"
-        echo "36-45 : ${AGE[4]}"
-        echo "46-55 : ${AGE[5]}"
-        echo "56-65 : ${AGE[6]}"
-        echo "66-75 : ${AGE[7]}"
-        echo "76-85 : ${AGE[8]}"
-        echo "86-95 : ${AGE[9]}"
-        echo "96-105: ${AGE[10]}"
-        echo ">105  : ${AGE[11]}"
-        echo "None  : ${AGE[12]}" 
-        fi
+        
     ;;
     5) 
         daily
+        
     ;;
     6)
         monthly
+        
     ;;
     7)
         yearly
+        
     ;;
     8)
         countries
-        for c in "${!COUNTRIES[@]}"; do
-            echo "$c: ${COUNTRIES[$c]}"
-        done
+        
     ;;
     9)
         districts
-        for c in "${!COUNTRIES[@]}"; do
-            echo "$c: ${COUNTRIES[$c]}"
-        done
+        
     ;;
     10) 
         regions
-        for c in "${!COUNTRIES[@]}"; do
-            echo "$c: ${COUNTRIES[$c]}"
-        done
+        
     ;;
     *) 
     echo "ERROR: Unknown command"
@@ -114,84 +117,27 @@ cross () {
 }
 
 filters () {
-    ret=0 
     if [ "${FILTERS[after]}" != "" ]; then
-        ret="$(after "$1")"
+        after
     fi
-    if [ "${FILTERS[before]}" != "" ] && [ "$ret" -ne 1 ]; then 
-        ret="$(before "$1")"
-    else
-        return "$ret"
+    if [ "${FILTERS[before]}" != "" ]; then 
+        before
     fi
-    if [ "${FILTERS[gender]}" != "" ] && [ "$ret" -ne 1 ]; then 
-        #gender_filter "$1"
-        return "$ret"
-    else
-        return "$ret"
+    if [ "${FILTERS[gender]}" != "" ]; then 
+        gender_filter
     fi
-    return 0
 }
 
 after () { 
-    IFS='-' read -r -a date <<< "${FILTERS[after]}"
-    IFS=',' read -r -a log <<< "$1"
-    IFS='-' read -r -a checked <<< "${log[1]}"
-    for i in "${!date[@]}"
-    do
-        date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
-    done
-
-    for i in "${!checked[@]}"
-    do
-        checked[$i]=$(sed 's/^0*//'<<< "${checked[$i]}")
-    done
-
-    #echo ${date[1]}
-
-    if ((checked[0] < date[0])); then # log > wanted
-        echo 1
-    else
-        if ((checked[1] < date[1])); then 
-            echo 1
-        else
-            if ((checked[2] < date[2])); then
-                echo 1
-            else
-                echo 0
-            fi
-        fi
-    fi
-
-    
+    FILE=$(echo -e "$FILE" | awk -v after="${FILTERS[after]}" -F, 'NR==1{print $0} after<=$2 && $2!="datum"{print $0} ')
 }
 
 before () {
-    IFS='-' read -r -a date <<< "${FILTERS[before]}"
-    IFS=',' read -r -a log <<< "$1"
-    IFS='-' read -r -a checked <<< "${log[1]}"
-    for i in "${!date[@]}"
-    do
-        date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
-    done
+    FILE=$(echo -e "$FILE" | awk -v before="${FILTERS[before]}" -F, 'NR==1{print $0} before>=$2 && $2!="datum"{print $0}')
+}
 
-    for i in "${!checked[@]}"
-    do
-        checked[$i]=$(sed 's/^0*//'<<< "${checked[$i]}")
-    done
-
-    if ((checked[0] > date[0])); then # log > wanted
-        echo 1
-    else
-        if ((checked[1] > date[1])); then 
-            echo 1
-        else
-            if ((checked[2] > date[2])); then
-                echo 1
-            else
-                echo 0
-            fi
-        fi
-    fi
+gender_filter () {
+    FILE=$(echo -e "$FILE" | awk -v gender="${FILTERS[gender]}" -F, 'NR==1{print $0} $4==gender{print $0} ')
 }
 
 none () {
@@ -200,737 +146,82 @@ none () {
     echo "ERROR" # TODO
     exit 1
     fi
-    if [[ $file == "" ]]; 
-    then
-
-        while read line; do  
-        echo $line
-        done
-
-    else 
-
-        while read line; do  
-        echo $line
-        done <$file
-
-    fi
 }
 
-merge () { 
-    if ! [ -f $file ];
-    then
-        cat -
+merge () {
+    nl="\n" 
+    if [ $HEADPRINT == true ]; then
+        FILE="${file}"
     else
-        if [ $HEADPRINT == true ]; then
-            cat $file
-            HEADPRINT=false
-        else
-            cat $file | tail -n +2
-        fi
+        file=$(echo -e "$file" | tail -n +2)
+        FILE="${FILE}${nl}${file}"
     fi
+    echo -e "$FILE"
 }
 
 infected () {
 
-    if [[ $file == "" ]];
-    then
-        COUNT=0
-
-        while read line; do
-        IFS=',' read -r -a string <<< "$line"
-
-        if [ ${string[2]} == "vek" ]; then
-            continue
-        fi
-        
-        #filters "$line"
-
-        if filters "$line"; then
-            COUNT=$((COUNT+1))
-        fi
-        done
-
-    else
-        COUNT=0
-
-        while read line; do
-        IFS=',' read -r -a string <<< $line
-
-        if [ ${string[2]} == "vek" ]; then
-            continue
-        fi
-
-        #filters "$line"
-
-        if filters "$line"; then
-            COUNT=$((COUNT+1))
-        fi
-        done <$file
-
-    fi
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} {COUNT++} END{print COUNT}'
 
 }
 
-gender () { 
-    IFS=','
-    MUZI=0
-    ZENY=0
-    NONE=0
-
-    if [[ $file == "" ]];
-    then
-        while read line; do  
-        
-            read -a string <<< $line
-            if [ "${string[3]}" == "pohlavi" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            if [ "${string[3]}" == "Z" ]; then
-                ZENY=$((ZENY+1))
-            else
-                if [ "${string[3]}" == "" ]; then 
-                    NONE=$((NONE+1))
-                else
-                    MUZI=$((MUZI+1))
-                fi
-            fi
-        done
-    else
-        while read line; do  
-        
-            read -a string <<< $line
-            if [ ${string[3]} == "pohlavi" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            if [ ${string[3]} == "Z" ]; then
-            ZENY=$((ZENY+1))
-            else
-                if [ "${string[3]}" == "" ]; then 
-                    NONE=$((NONE+1))
-                else
-                    MUZI=$((MUZI+1))
-                fi
-            fi
-        done <$file
-    fi
+gender () {
+    
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4=="M"{COUNT++} END{print "M   : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4=="Z"{COUNT++} END{print "Z   : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4==""{COUNT++} END{print "None: "COUNT}'
 }
 
 age () {
-    IFS=','
-    local LOW=0
-    local HIGH=5
-    local ORD=0
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=5 && $3>=0{COUNT++} END{print "0-5   : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=15 && $3>=6{COUNT++} END{print "6-15  : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=25 && $3>=16{COUNT++} END{print "16-25 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=35 && $3>=26{COUNT++} END{print "26-35 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=45 && $3>=36{COUNT++} END{print "36-45 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=55 && $3>=46{COUNT++} END{print "46-55 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=65 && $3>=56{COUNT++} END{print "56-65 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=75 && $3>=66{COUNT++} END{print "66-75 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=85 && $3>=76{COUNT++} END{print "76-85 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=95 && $3>=86{COUNT++} END{print "86-95 : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=105 && $3>=96{COUNT++} END{print "96-105: "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3>=105{COUNT++} END{print ">105  : "COUNT}'
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3==""{COUNT++} END{if(COUNT != 0) {print "None  : "COUNT}}'
 
-    if [[ $file == "" ]];
-    then
-        while read line; do  
-        
-            read -a string <<< $line
-            if [ ${string[2]} == "vek" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            if [ ${string[2]} == "" ]; then
-                AGE[12]=$((AGE[12]+1))
-                continue
-            fi
-
-            if [ ${string[2]} -gt 105 ]; then
-                AGE[11]=$((AGE[11]+1))
-                continue
-            fi
-
-            while ((HIGH <= 105)); do
-                if ((string[2] >= LOW && string[2] <= HIGH)); then
-                    AGE[$ORD]=$((AGE[ORD]+1))
-                    break
-                else
-                    if [ $LOW -eq 0 ]; then
-                        LOW=$((LOW+6))
-                    else
-                        LOW=$((LOW+10))
-                    fi
-                    HIGH=$((HIGH+10))
-                    ORD=$((ORD+1))
-                fi
-
-            done
-
-            LOW=0
-            HIGH=5
-            ORD=0
-
-        done
-    else
-        while read line; do  
-        
-            read -a string <<< $line
-            if [ "${string[2]}" == "vek" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            if [ "${string[2]}" == "" ]; then
-                AGE[12]=$((AGE[12]+1))
-                continue
-            fi
-
-            if [ "${string[2]}" -gt 105 ]; then
-                AGE[11]=$((AGE[11]+1))
-                continue
-            fi
-
-            while ((HIGH <= 105)); do
-                if ((string[2] >= LOW && string[2] <= HIGH)); then
-                    AGE[$ORD]=$((AGE[ORD]+1))
-                    break
-                else
-                    if [ $LOW -eq 0 ]; then
-                        LOW=$((LOW+6))
-                    else
-                        LOW=$((LOW+10))
-                    fi
-                    HIGH=$((HIGH+10))
-                    ORD=$((ORD+1))
-                fi
-
-            done
-
-            LOW=0
-            HIGH=5
-            ORD=0
-
-        done <$file
-    fi
 }
 
 daily () { 
-    # supports only 1 file
-    DAY=0
-    MONTH=0
-    YEAR=0
+    
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=$2} $2==""{NONE++} PRV==$2{COUNT++} 
+    PRV!=$2{print PRV": "COUNT; COUNT=1; PRV=$2} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
 
-    if [[ $file == "" ]];
-    then
-        while read line; do  
-
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            IFS='-'
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-                DAY=${date[2]}
-            fi
-
-            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ] && [ $DAY == ${date[2]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR-$MONTH-$DAY: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-                DAY=${date[2]}
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi    
-
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-                DAY=${date[2]}
-            fi
-
-            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ] && [ $DAY == ${date[2]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR-$MONTH-$DAY: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-                DAY=${date[2]}
-            fi
-
-        done <$file
-    fi
-    echo "$YEAR-$MONTH-$DAY: $OUT"
 }
 
 monthly () { 
-    MONTH=0
-    YEAR=0
-
-    if [[ $file == "" ]];
-    then
-        while read line; do  
-
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            IFS='-'
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-            fi
-
-            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR-$MONTH: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            IFS='-'
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-            fi
-
-            if [ $YEAR == ${date[0]} ] && [ $MONTH == ${date[1]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR-$MONTH: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-                MONTH=${date[1]}
-            fi
-
-        done <$file
-    fi
-    echo "$YEAR-$MONTH: $OUT"
+    
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=substr($2,1,7)} PRV==substr($2,1,7){COUNT++} 
+    PRV!=substr($2,1,7){print PRV": "COUNT; COUNT=1; PRV=substr($2,1,7)} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
 }
 
 yearly() {
-    YEAR=0
-
-    if [[ $file == "" ]];
-    then
-        while read line; do  
-
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            IFS='-'
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-            fi
-
-            if [ $YEAR == ${date[0]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            IFS='-'
-            read -a date <<< "${string[1]}"
-            if [ $YEAR == 0 ]; then
-                YEAR=${date[0]}
-            fi
-
-            if [ $YEAR == ${date[0]} ]; then
-                OUT=$((OUT + 1))
-            else
-                echo "$YEAR: $OUT"
-                OUT=1
-                YEAR=${date[0]}
-            fi
-
-        done <$file
-    fi
-    echo "$YEAR: $OUT"
-}
-
-countries() {
-    CHECKED=""
-    CHECK=0
-    #COUNTRY=""
-    #DATA=$(cat -)
-
-    if [[ $file == "" ]];
-    then
-        while read line; do 
-
-            #echo "${COUNTRIES[@]}"
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            if [ "${string[6]}" != 1 ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[7]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[7]}"
-                    CHECKED+=","
-                fi
-
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[7]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
-
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[7]}]=1
-                fi
-
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            if [ "${string[6]}" != 1 ]; then
-                continue
-            else
-                CHECK=0
-                for c in "${CNT[@]}"
-                do
-                    if [ $c == ${string[7]} ]; then
-                        CHECK=1
-                    fi
-                done
-
-                if [ $CHECK -eq 0 ]; then
-                    CHECKED+="${string[7]}"
-                    CHECKED+=","
-                fi
-
-                ADDED=false
-                for d in "${!COUNTRIES[@]}"
-                do
-                    if [ $d == ${string[7]} ]; then
-                        COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                        ADDED=true
-                        break
-                    fi
-                done
-
-                if [ $ADDED == false ]; then
-                    COUNTRIES[${string[7]}]=1
-                fi
-
-            fi
-        done <$file
-    fi
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=substr($2,1,4)} PRV==substr($2,1,4){COUNT++} 
+    PRV!=substr($2,1,4){print PRV": "COUNT; COUNT=1; PRV=substr($2,1,4)} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
 }
 
 districts () {
-    CHECKED=""
-    CHECK=0
-    #COUNTRY=""
-    #DATA=$(cat -)
-
-    if [[ $file == "" ]];
-    then
-        while read line; do 
-
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            CHECK=0
-            for c in "${CNT[@]}"
-            do
-                if [ "$c" == "${string[5]}" ]; then
-                    CHECK=1
-                fi
-            done
-
-            if [ $CHECK -eq 0 ]; then
-                CHECKED+="${string[5]}"
-                CHECKED+=","
-            fi
-
-            ADDED=false
-            for d in "${!COUNTRIES[@]}"
-            do
-                if [ $d == "${string[5]}" ]; then
-                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                    ADDED=true
-                    break
-                fi
-            done
-
-            if [ $ADDED == false ]; then
-                if [ "${string[5]}" == "" ]; then
-                    string[5]="None"
-                fi
-                COUNTRIES[${string[5]}]=1
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            CHECK=0
-            for c in "${CNT[@]}"
-            do
-                if [ "$c" == "${string[5]}" ]; then
-                    CHECK=1
-                fi
-            done
-
-            if [ $CHECK -eq 0 ]; then
-                CHECKED+="${string[5]}"
-                CHECKED+=","
-            fi
-
-            ADDED=false
-            for d in "${!COUNTRIES[@]}"
-            do
-                if [ $d == "${string[5]}" ]; then
-                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                    ADDED=true
-                    break
-                fi
-            done
-
-            if [ $ADDED == false ]; then
-                if [ "${string[5]}" == "" ]; then
-                    string[5]="None"
-                fi
-                COUNTRIES[${string[5]}]=1
-            fi
-        done <$file
-    fi
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNTRIES["None"]=0} NR==1{next} $6==""{COUNTRIES["None"]++} $6!=""{COUNTRIES[$6]+=1}
+     END{if (COUNTRIES["None"]==0) {delete(COUNTRIES["None"])}; for (i in COUNTRIES) print i": "COUNTRIES[i]}' | sort
 }
 
 regions () {
-    CHECKED=""
-    CHECK=0
-    #COUNTRY=""
-    #DATA=$(cat -)
-
-    if [[ $file == "" ]];
-    then
-        while read line; do 
-
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            CHECK=0
-            for c in "${CNT[@]}"
-            do
-                if [ "$c" == "${string[4]}" ]; then
-                    CHECK=1
-                fi
-            done
-
-            if [ $CHECK -eq 0 ]; then
-                CHECKED+="${string[4]}"
-                CHECKED+=","
-            fi
-
-            ADDED=false
-            for d in "${!COUNTRIES[@]}"
-            do
-                if [ $d == "${string[4]}" ]; then
-                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                    ADDED=true
-                    break
-                fi
-            done
-
-            if [ $ADDED == false ]; then
-                if [ "${string[4]}" == "" ]; then
-                    string[4]="None"
-                fi
-                COUNTRIES[${string[4]}]=1
-            fi
-
-        done
-    else
-        while read line; do  
-        
-            IFS=','
-            read -a string <<< $line
-            if [ "${string[1]}" == "datum" ]; then
-                continue
-            fi
-
-            if ! filters "$line"; then
-                continue
-            fi
-
-            read -a CNT <<< $CHECKED
-            CHECK=0
-            for c in "${CNT[@]}"
-            do
-                if [ "$c" == "${string[4]}" ]; then
-                    CHECK=1
-                fi
-            done
-
-            if [ $CHECK -eq 0 ]; then
-                CHECKED+="${string[4]}"
-                CHECKED+=","
-            fi
-
-            ADDED=false
-            for d in "${!COUNTRIES[@]}"
-            do
-                if [ $d == "${string[4]}" ]; then
-                    COUNTRIES[$d]=$((COUNTRIES[$d] + 1))
-                    ADDED=true
-                    break
-                fi
-            done
-
-            if [ $ADDED == false ]; then
-                if [ "${string[4]}" == "" ]; then
-                    string[4]="None"
-                fi
-                COUNTRIES[${string[4]}]=1
-            fi
-        done <$file
-    fi
+    echo -e "$FILE" | awk -F, 'BEGIN{COUNTRIES["None"]=0} NR==1{next} $5==""{COUNTRIES["None"]++} $5!=""{COUNTRIES[$5]+=1}
+     END{if (COUNTRIES["None"]==0) {delete(COUNTRIES["None"])}; for (i in COUNTRIES) print i": "COUNTRIES[i]}' | sort
 }
 
+
+argz="" #not needed?
 #look for help 
 while getopts :ha:b:g:s: options; do
+        argz="${argz} -${options} ${OPTARG}"
         case $options in
                 h) 
                 echo "HELP"
@@ -945,6 +236,11 @@ while getopts :ha:b:g:s: options; do
                 fi
 
                 FILTERS[after]=$OPTARG
+                IFS='-' read -r -a date <<< "${FILTERS[after]}"
+                for i in "${!date[@]}"
+                do
+                    date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
+                done
                 ;;
 
                 b) 
@@ -955,6 +251,11 @@ while getopts :ha:b:g:s: options; do
                 fi
                 
                 FILTERS[before]=$OPTARG
+                IFS='-' read -r -a date <<< "${FILTERS[before]}"
+                for i in "${!date[@]}"
+                do
+                    date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
+                done
                 ;;
 
                 g) 
@@ -987,8 +288,9 @@ done
 for i in "${args[@]}"
 do
     PRINT=false
-
-    if [ "${args[$#-1]}" == "$i" ]; 
+    
+    sizearg=$((sizearg+1))
+    if [ "$sizearg" == "$#" ];
     then
     PRINT=true
     fi
@@ -999,9 +301,8 @@ do
     do
         if [[ $j == $i  &&  $COMMAND -eq 0 ]];
         then
-            #echo $j
             COMMAND=${COMMANDS[$j]}
-            #echo $COMMAND
+            argz="${argz} ${j}"
             break
         fi
 
@@ -1015,13 +316,34 @@ do
 
     if [ -f $i ];
     then
-        file=$i
-        cross
+        if [[ "$i" == *.csv ]]; then
+            file=$(cat $i)
+            merge > /dev/null
+            HEADPRINT=false
+        fi
+        if [[ "$i" == *.gz ]]; then
+            file=$(gzip -dkc "$i")
+            merge > /dev/null
+            HEADPRINT=false
+        fi
+        if [[ "$i" == *.bz2 ]]; then
+            file=$(bzip2 -dkc "$i")
+            merge > /dev/null
+            HEADPRINT=false
+        fi
     fi
 done
 
 if [[ $file == "" ]]; 
 then
+file=$(cat -)
+merge > /dev/null
+validate
+filters
 cross
+exit 0
 fi
 
+validate
+filters
+cross
