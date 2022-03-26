@@ -3,7 +3,7 @@
 POSIXLY_CORRECT=yes
 
 
-# TODO: last filter, validate logs
+# TODO:validate logs, histrogram, finish help, rewrite stderr, rewrite ERRORS
 
 sizearg=0
 file=""
