@@ -3,7 +3,7 @@
 POSIXLY_CORRECT=yes
 
 
-# TODO:validate logs, histrogram, finish help, rewrite stderr, rewrite ERRORS
+# TODO:validate logs, histogram, finish help, rewrite stderr, rewrite ERRORS
 
 sizearg=0
 file=""
@@ -11,13 +11,12 @@ FILE=""
 args=("$@")
 HEADPRINT=true
 COMMAND=0
-OUT=0
-COUNT=1212112212121212121212
-MUZI=0
-ZENY=0
-NONE=0
-declare -a AGE=(0 0 0 0 0 0 0 0 0 0 0 0 0)
-
+AFTER=0
+BEFORE=0
+GENDER=0
+WIDTH=0
+HIST=0
+declare -a DEFS=(100000 10000 500 10000 100000 100 1000 10000)
 
 declare -A COMMANDS=(
     [infected]=1
@@ -44,31 +43,27 @@ declare -A COUNTRIES
 # 6f4125cb-fb41-4fb0-a478-07b69ba106a4,2020-03-01,21,Z,CZ010,CZ0100,1,IT,1
 
 validate () {
-    #echo
-    #echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} {if (substr($2,6,2)=="03") {print substr($2,6,2)}}'
-    #pokus "${log[1]}"
     valdate
+    valage
 }
 # [0-9]{4}-[0]{1}[1-9]{1}-[0]{1}[1-9]{1}|[0-9]{4}-[0]{1}[1-9]{1}-[1]{1}[1-9]{1}|[0-9]{4}-[0]{1}[12-8]{1}-[1]{1}[1-9]{1}
 #^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
 valdate () { 
 
-    FILE=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0}; NR==1{print $0; next}  $2 !~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0 | "cat 1>&2"}
+    FILE=$(echo -e "$FILE" | awk -F, ' NR==1{print $0; next}  $2 !~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0 | "cat 1>&2"}
     $2 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
 
 }
 
-pokus () { 
-    datum=$(date -d "$1" 2>/dev/null)
-    if [ "$?" -eq 1 ]; then
-        echo "$line" >&2
-    fi
+valage() {
+    FILE=$(echo -e "$FILE" | awk -F, 'NR==1{print $0; next} $3 ~ /^[0-9]+$/||$3==""{print $0} $3 !~ /^[0-9]+$/&&$3!=""{print $0 | "cat 1>&2"}')
 }
+
 
 cross () { 
     case $COMMAND in
     0) 
-        none
+        echo -e "$FILE"
     ;;
     1)
         infected
@@ -120,10 +115,10 @@ filters () {
     if [ "${FILTERS[after]}" != "" ]; then
         after
     fi
-    if [ "${FILTERS[before]}" != "" ]; then 
+    if [ "${FILTERS[before]}" != "" ]; then
         before
     fi
-    if [ "${FILTERS[gender]}" != "" ]; then 
+    if [ "${FILTERS[gender]}" != "" ]; then
         gender_filter
     fi
 }
@@ -140,13 +135,7 @@ gender_filter () {
     FILE=$(echo -e "$FILE" | awk -v gender="${FILTERS[gender]}" -F, 'NR==1{print $0} $4==gender{print $0} ')
 }
 
-none () {
-    if [[ $file != "" && $COMMAND == 0 ]];
-    then
-    echo "ERROR" # TODO
-    exit 1
-    fi
-}
+
 
 merge () {
     nl="\n" 
@@ -166,10 +155,21 @@ infected () {
 }
 
 gender () {
-    
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4=="M"{COUNT++} END{print "M   : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4=="Z"{COUNT++} END{print "Z   : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $4==""{COUNT++} END{print "None: "COUNT}'
+    m=$(echo -e "$FILE" | awk -F,  'BEGIN{COUNT=0} NR==1{next} $4=="M"{COUNT++} END{print COUNT}')
+
+    z=$(echo -e "$FILE" | awk -F,  'BEGIN{COUNT=0} NR==1{next} $4=="Z"{COUNT++} END{print COUNT} ')
+
+    none=$(echo -e "$FILE" | awk -F,  'BEGIN{COUNT=0} NR==1{next} $4==""{COUNT++} END{print COUNT} ')
+
+    awk -v M="$m" -v Z="$z" -v N="$none" -v hist="$HIST" -v max="${FILTERS[width]}" 'BEGIN{if (hist==0) {print "M   : "M; print "Z   : "Z; print "None: "N}
+    else if (hist==1 && max==-1) {COUNT=int(M/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "M   : "HASH;
+                                COUNT=int(Z/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "Z   : "HASH;
+                                COUNT=int(N/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "None: "HASH} 
+    else if (hist==1 && max!=-1) {MAXX=0; arr[0]=M; arr[1]=Z; arr[2]=N; for (i=0; i<3; i++) {MAXX = (MAXX < arr[i]) ? arr[i] : MAXX}
+                                DIV=MAXX/max
+                                COUNT=int(M/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "M   : "HASH;
+                                COUNT=int(Z/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "Z   : "HASH;
+                                COUNT=int(N/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "None: "HASH} }'
 }
 
 age () {
@@ -220,104 +220,177 @@ regions () {
 
 argz="" #not needed?
 #look for help 
-while getopts :ha:b:g:s: options; do
-        argz="${argz} -${options} ${OPTARG}"
+while getopts ha:b:g:s: options; do
         case $options in
                 h) 
-                echo "HELP"
-                exit 1
+                continue
                 ;;
 
                 a)
-                if [ "${FILTERS[after]}" != "" ];
-                then
-                echo "Error: Too many flags of the same type" >&2
-                exit 1
-                fi
-
-                FILTERS[after]=$OPTARG
-                IFS='-' read -r -a date <<< "${FILTERS[after]}"
-                for i in "${!date[@]}"
-                do
-                    date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
-                done
+                continue
                 ;;
 
                 b) 
-                if [ "${FILTERS[before]}" != "" ];
-                then
-                echo "Error: Too many flags of the same type" >&2
-                exit 1
-                fi
-                
-                FILTERS[before]=$OPTARG
-                IFS='-' read -r -a date <<< "${FILTERS[before]}"
-                for i in "${!date[@]}"
-                do
-                    date[$i]=$(sed 's/^0*//'<<< "${date[$i]}")
-                done
+                continue
                 ;;
 
                 g) 
-                if [ "${FILTERS[before]}" != "" ];
-                then
-                echo "Error: Too many flags of the same type" >&2
-                exit 1
-                fi
-                
-                FILTERS[after]=$OPTARG
+                continue
                 ;;
 
-                s) 
-                if [ "${FILTERS[before]}" != "" ];
-                then
-                echo "Error: Too many flags of the same type" >&2
-                exit 1
-                fi
-
-                FILTERS[after]=$OPTARG
+                s)
+                continue
                 ;;
 
                 ?) 
-                echo "Unknown option: $OPTARG"
                 exit 1
                 ;;
         esac
 done
 
+
 for i in "${args[@]}"
 do
-    PRINT=false
-    
-    sizearg=$((sizearg+1))
-    if [ "$sizearg" == "$#" ];
-    then
-    PRINT=true
+
+    if [[ $i == "-h" ]]; then
+        echo "HELP"
+        exit 1
     fi
 
-    if ! [ -f $i ];
-    then
-    for j in "${!COMMANDS[@]}"
-    do
-        if [[ $j == $i  &&  $COMMAND -eq 0 ]];
-        then
-            COMMAND=${COMMANDS[$j]}
-            argz="${argz} ${j}"
-            break
-        fi
+    if [[ $i == "-a" ]]; then
+        AFTER=1
+        continue
+    fi
+    
 
-        if ! [ $COMMAND -eq 0 ];
-        then
-            echo "Too many COMMANDS, maximum 1 allowed" >&2
+    if [[ $AFTER == 1 ]]; then
+        if [ "${FILTERS[after]}" != "" ];
+            then
+            echo "Error: Too many flags of the same type" >&2
             exit 1
         fi
-    done
+
+        tmp=$(echo -e "$i" | awk -F, '$0 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
+        if [[ $tmp == "" ]]; then
+            echo "Error6"
+            exit 1
+        fi
+        FILTERS[after]=$i
+        AFTER=0
+        continue
+    fi
+
+    if [[ $i == "-b" ]]; then
+        BEFORE=1
+        continue
+    fi
+
+    if [[ $BEFORE == 1 ]]; then
+        if [ "${FILTERS[before]}" != "" ];
+        then
+            echo "Error: Too many flags of the same type" >&2
+            exit 1  
+        fi
+        
+        tmp=$(echo -e "$i" | awk -F, '$0 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
+        if [[ $tmp == "" ]]; then
+            echo "Error7"
+            exit 1
+        fi
+        FILTERS[before]=$i
+        BEFORE=0
+        continue
+    fi
+
+    if [[ $i == "-g" ]]; then
+        GENDER=1
+        continue
+    fi
+
+    if [[ $GENDER == 1 ]]; then
+        if [ "${FILTERS[gender]}" != "" ];
+        then
+            echo "Error: Too many flags of the same type" >&2
+            exit 1
+        fi
+
+        tmp=$(echo -e "$i" | awk -F, '$0 ~ /^[M]{1}$|^[Z]{1}$/{print $0}')
+        if [[ $tmp == "" ]]; then
+            echo "Error8"
+            exit 1
+        fi
+        FILTERS[gender]=$i
+        GENDER=0
+        continue
+    fi
+
+    if [[ $i == "-s" ]]; then
+        WIDTH=1
+        HIST=1
+        continue
+    fi
+
+    if [[ $WIDTH == 1 ]]; then
+        goodinput=0 
+        if [ "${FILTERS[width]}" != -1 ];
+        then
+        echo "Error: Too many flags of the same type" >&2
+        exit 1
+        fi
+
+        if ! [ -f "$i" ];
+        then
+            for j in "${!COMMANDS[@]}"
+            do
+                if [[ "$i" == "$j" ]]; then
+                    goodinput=1
+                    WIDTH=0
+                    break
+                fi
+            done
+            if [[ $goodinput == 0 ]]; then
+                tmp=$(echo -e "$i" | awk -F, '$0 ~ /^[1-9][0-9]?+$/{print $0}')
+                if [[ "$tmp" == "" ]]; then
+                    echo "Error9"
+                    exit 1
+                fi
+                FILTERS[width]=$i
+                WIDTH=0 
+                continue
+            fi
+        else
+            WIDTH=0
+            continue
+        fi
+    fi
+
+    if ! [ -f "$i" ];
+    then
+        if [ "$FILE" != "" ]; then 
+            echo "Error10"
+            exit 1
+        fi
+        for j in "${!COMMANDS[@]}"
+        do
+            if [[ $j == $i  &&  $COMMAND -eq 0 ]];
+            then
+                COMMAND=${COMMANDS[$j]}
+                break
+            fi
+
+            if ! [ $COMMAND -eq 0 ];
+            then
+                echo "Too many COMMANDS, maximum 1 allowed" >&2
+                exit 1
+            fi
+        done
+        continue
     fi
 
     if [ -f $i ];
     then
         if [[ "$i" == *.csv ]]; then
-            file=$(cat $i)
+            file=$(cat "$i")
             merge > /dev/null
             HEADPRINT=false
         fi
