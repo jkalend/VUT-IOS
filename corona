@@ -1,11 +1,10 @@
 #!/bin/bash
 
 POSIXLY_CORRECT=yes
+LC_ALL=en_US.UTF-8
 
+# TODO:validate logs, finish help, rewrite stderr, rewrite ERRORS
 
-# TODO:validate logs, histogram, finish help, rewrite stderr, rewrite ERRORS
-
-sizearg=0
 file=""
 FILE=""
 args=("$@")
@@ -16,7 +15,6 @@ BEFORE=0
 GENDER=0
 WIDTH=0
 HIST=0
-declare -a DEFS=(100000 10000 500 10000 100000 100 1000 10000)
 
 declare -A COMMANDS=(
     [infected]=1
@@ -38,25 +36,22 @@ declare -A FILTERS=(
     [width]=-1
 )
 
-declare -A COUNTRIES
 
-# 6f4125cb-fb41-4fb0-a478-07b69ba106a4,2020-03-01,21,Z,CZ010,CZ0100,1,IT,1
 
 validate () {
     valdate
     valage
 }
-# [0-9]{4}-[0]{1}[1-9]{1}-[0]{1}[1-9]{1}|[0-9]{4}-[0]{1}[1-9]{1}-[1]{1}[1-9]{1}|[0-9]{4}-[0]{1}[12-8]{1}-[1]{1}[1-9]{1}
-#^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
+
 valdate () { 
 
-    FILE=$(echo -e "$FILE" | awk -F, ' NR==1{print $0; next}  $2 !~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0 | "cat 1>&2"}
-    $2 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
+    FILE=$(echo -e "$FILE" | awk -F, ' NR==1{print $0; next} $0 ~ /^\s+/{next}  $2 !~ /\s*(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|\s*((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|\s*((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print "Invalid date: "$0 | "cat 1>&2"}
+    $2 ~ /\s*(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|\s*((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|\s*((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
 
 }
 
 valage() {
-    FILE=$(echo -e "$FILE" | awk -F, 'NR==1{print $0; next} $3 ~ /^[0-9]+$/||$3==""{print $0} $3 !~ /^[0-9]+$/&&$3!=""{print $0 | "cat 1>&2"}')
+    FILE=$(echo -e "$FILE" | awk -F, 'NR==1{print $0; next} gsub(/ /,"") $3 ~ /^[0-9]+$/||$3==""{print $0; next} $3 ~ /[-][0-9]+|^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/&&$3!=""{print "Invalid age: "$0 | "cat 1>&2"}')
 }
 
 
@@ -104,7 +99,7 @@ cross () {
         
     ;;
     *) 
-    echo "ERROR: Unknown command"
+    echo "ERROR: Unknown command" >&2
     exit 1;;
 
     esac 
@@ -135,14 +130,44 @@ gender_filter () {
     FILE=$(echo -e "$FILE" | awk -v gender="${FILTERS[gender]}" -F, 'NR==1{print $0} $4==gender{print $0} ')
 }
 
-
+HELP () {
+    echo "corona — an analyzer of logs of people infected by coronavirus causing COVID-19"
+    echo
+    echo "Usage"
+    echo "  corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]"
+    echo
+    echo "COMMAND can be one of the following:"
+    echo
+    echo "  infected - counts the number of infected "
+    echo "  merge    - merges numerous files into one and returns it to stdout"
+    echo "  gender   - counts the number of infected for each gender"
+    echo "  age      - counts the number of infected for each age group"
+    echo "  daily    - counts the number of infected for each day"
+    echo "  monthly  - counts the number of infected for each month"
+    echo "  yearly   - counts the number of infected for each year"
+    echo "  countries- counts the number of people who got infected in foreign country"
+    echo "  districts- counts the number of infected for each district in the Czech Republic"
+    echo "  regions  - counts the number of infected for each reagion in the Czech Republic"
+    echo
+    echo "FILTERS can be a mix of the following (maximum of one of each):"
+    echo
+    echo "  -a DATETIME - only records after DATETIME and the DATETIME records are considered, the format of DATETIME is YYYY-MM-DD"
+    echo "  -b DATETIME - only records before DATETIME and the DATETIME records are considered"
+    echo "  -g GENDER   - only records of GENDER gender are considered, GENDER is either M (male) or Z (female)"
+    echo "  -s [WIDTH]  - values are represented as a histogram made up of '#', when optional WIDTH value is inputed, " 
+    echo "                the maximum value of the report takes on the length of WIDTH times '#' and the other values are represented in proper ratio"
+    echo
+    echo "  -h  - shows the help for the usage of this program"
+}
 
 merge () {
-    nl="\n" 
-    if [ $HEADPRINT == true ]; then
-        FILE="${file}"
+    nl="\n"
+    if [[ "$file" == "" ]]; then
+        FILE="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs"
+    elif [ $HEADPRINT == true ]; then
+        FILE="id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs${nl}${file}"
     else
-        file=$(echo -e "$file" | tail -n +2)
+        file=$(echo -e "$file")
         FILE="${FILE}${nl}${file}"
     fi
     echo -e "$FILE"
@@ -161,64 +186,199 @@ gender () {
 
     none=$(echo -e "$FILE" | awk -F,  'BEGIN{COUNT=0} NR==1{next} $4==""{COUNT++} END{print COUNT} ')
 
-    awk -v M="$m" -v Z="$z" -v N="$none" -v hist="$HIST" -v max="${FILTERS[width]}" 'BEGIN{if (hist==0) {print "M   : "M; print "Z   : "Z; print "None: "N}
-    else if (hist==1 && max==-1) {COUNT=int(M/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "M   : "HASH;
-                                COUNT=int(Z/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "Z   : "HASH;
-                                COUNT=int(N/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "None: "HASH} 
+    awk -v M="$m" -v Z="$z" -v N="$none" -v hist="$HIST" -v max="${FILTERS[width]}" 'BEGIN{if (hist==0) {print "M: "M; print "Z: "Z; if (N != 0) print "None: "N}
+    else if (hist==1 && max==-1) {COUNT=int(M/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "M:"HASH;
+                                COUNT=int(Z/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "Z:"HASH;
+                                COUNT=int(N/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; if (N != 0) print "None:"HASH} 
     else if (hist==1 && max!=-1) {MAXX=0; arr[0]=M; arr[1]=Z; arr[2]=N; for (i=0; i<3; i++) {MAXX = (MAXX < arr[i]) ? arr[i] : MAXX}
-                                DIV=MAXX/max
-                                COUNT=int(M/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "M   : "HASH;
-                                COUNT=int(Z/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "Z   : "HASH;
-                                COUNT=int(N/DIV); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); print "None: "HASH} }'
+                                DIV=MAXX/max; if (DIV==0) {DIV=1}
+                                COUNT=M/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "M:"HASH;
+                                COUNT=Z/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "Z:"HASH;
+                                COUNT=N/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; if (N != 0) print "None:"HASH} }'
 }
 
 age () {
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=5 && $3>=0{COUNT++} END{print "0-5   : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=15 && $3>=6{COUNT++} END{print "6-15  : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=25 && $3>=16{COUNT++} END{print "16-25 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=35 && $3>=26{COUNT++} END{print "26-35 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=45 && $3>=36{COUNT++} END{print "36-45 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=55 && $3>=46{COUNT++} END{print "46-55 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=65 && $3>=56{COUNT++} END{print "56-65 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=75 && $3>=66{COUNT++} END{print "66-75 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=85 && $3>=76{COUNT++} END{print "76-85 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=95 && $3>=86{COUNT++} END{print "86-95 : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=105 && $3>=96{COUNT++} END{print "96-105: "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3>=105{COUNT++} END{print ">105  : "COUNT}'
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3==""{COUNT++} END{if(COUNT != 0) {print "None  : "COUNT}}'
+    MAXX=0
+    declare -a a
+    a[0]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=5 && $3>=0{COUNT++} END{print COUNT}')
+    a[1]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=15 && $3>=6{COUNT++} END{print COUNT}')
+    a[2]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=25 && $3>=16{COUNT++} END{print COUNT}')
+    a[3]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=35 && $3>=26{COUNT++} END{print COUNT}')
+    a[4]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=45 && $3>=36{COUNT++} END{print COUNT}')
+    a[5]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=55 && $3>=46{COUNT++} END{print COUNT}')
+    a[6]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=65 && $3>=56{COUNT++} END{print COUNT}')
+    a[7]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=75 && $3>=66{COUNT++} END{print COUNT}')
+    a[8]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=85 && $3>=76{COUNT++} END{print COUNT}')
+    a[9]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=95 && $3>=86{COUNT++} END{print COUNT}')
+    a[10]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3<=105 && $3>=96{COUNT++} END{print COUNT}')
+    a[11]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3>105{COUNT++} END{print COUNT}')
+    a[12]=$(echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0} NR==1{next} $3==""{COUNT++} END{print COUNT}')
+
+    for i in "${a[@]}"
+    do
+        if [[ $i -gt $MAXX ]]; then
+            MAXX=$i
+        fi
+    done
+
+    awk -v hist="$HIST" -v max="${FILTERS[width]}" -v MAXX="$MAXX" -v a0="${a[0]}" -v a1="${a[1]}" -v a2="${a[2]}" -v a3="${a[3]}" -v a4="${a[4]}" -v a5="${a[5]}" -v a6="${a[6]}" -v a7="${a[7]}" -v a8="${a[8]}" -v a9="${a[9]}" -v a10="${a[10]}" -v a11="${a[11]}" -v a12="${a[12]}" '
+    BEGIN{if (hist==0) {print "0-5   : "a0; print "6-15  : "a1; print "16-25 : "a2; print "26-35 : "a3; print "36-45 : "a4; print "46-55 : "a5; print "56-65 : "a6; print "66-75 : "a7; print "76-85 : "a8; print "86-95 : "a9; print "96-105: "a10; print ">105  : "a11; if (a12 != 0) print "None  : "a12}
+        else if (hist==1 && max==-1) {
+            COUNT=int(a0/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "0-5   :"HASH;
+            COUNT=int(a1/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "6-15  :"HASH;
+            COUNT=int(a2/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "16-25 :"HASH;
+            COUNT=int(a3/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "26-35 :"HASH;
+            COUNT=int(a4/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "36-45 :"HASH;
+            COUNT=int(a5/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "46-55 :"HASH;
+            COUNT=int(a6/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "56-65 :"HASH;
+            COUNT=int(a7/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "66-75 :"HASH;
+            COUNT=int(a8/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "76-85 :"HASH;
+            COUNT=int(a9/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "86-95 :"HASH;
+            COUNT=int(a10/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "96-105:"HASH;
+            COUNT=int(a11/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print ">105  :"HASH;
+            COUNT=int(a12/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; if (a12 != 0) print "None  :"HASH}
+        else if (hist==1 && max!=-1) {
+            DIV=MAXX/max; if (DIV==0) {DIV=1};
+            COUNT=a0/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "0-5   :"HASH;
+            COUNT=a1/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "6-15  :"HASH;
+            COUNT=a2/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "16-25 :"HASH;
+            COUNT=a3/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "26-35 :"HASH;
+            COUNT=a4/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "36-45 :"HASH;
+            COUNT=a5/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "46-55 :"HASH;
+            COUNT=a6/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "56-65 :"HASH;
+            COUNT=a7/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "66-75 :"HASH;
+            COUNT=a8/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "76-85 :"HASH;
+            COUNT=a9/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "86-95 :"HASH;
+            COUNT=a10/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print "96-105:"HASH;
+            COUNT=a11/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print ">105  :"HASH;
+            COUNT=a12/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; if (a12 != 0) print "None  :"HASH}
+    }
+    '
 
 }
 
+
 daily () { 
     
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=$2} $2==""{NONE++} PRV==$2{COUNT++} 
-    PRV!=$2{print PRV": "COUNT; COUNT=1; PRV=$2} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+     NR==1{next} $2==""{DAILY["None"]++} $2!=""{DAILY[$2]+=1} 
+     END{
+        if (hist==0) {
+        for (i in DAILY) print i": "DAILY[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in DAILY) {COUNT=int(DAILY[i]/500); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in DAILY) {if (DAILY[i] >MAXX) {MAXX=DAILY[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in DAILY) {COUNT=DAILY[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
 
 }
 
 monthly () { 
+
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+     NR==1{next} $2==""{MONTHLY["None"]++} $2!=""{MONTHLY[substr($2,1,7)]+=1}
+     END{
+        if (hist==0) {
+        for (i in MONTHLY) print i": "MONTHLY[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in MONTHLY) {COUNT=int(MONTHLY[i]/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in MONTHLY) {if (MONTHLY[i] >MAXX) {MAXX=MONTHLY[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in MONTHLY) {COUNT=MONTHLY[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
     
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=substr($2,1,7)} PRV==substr($2,1,7){COUNT++} 
-    PRV!=substr($2,1,7){print PRV": "COUNT; COUNT=1; PRV=substr($2,1,7)} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
+    
 }
 
 yearly() {
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNT=0; NONE=0; PRV=""} NR==1{next} NR==2{PRV=substr($2,1,4)} PRV==substr($2,1,4){COUNT++} 
-    PRV!=substr($2,1,4){print PRV": "COUNT; COUNT=1; PRV=substr($2,1,4)} END{if (PRV!=""){print PRV": "COUNT}; if (NONE != 0){print "None: "NONE}}'
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+     NR==1{next} $2==""{YEARLY["None"]++} $2!=""{YEARLY[substr($2,1,4)]+=1}
+     END{
+        if (hist==0) {
+        for (i in YEARLY) print i": "YEARLY[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in YEARLY) {COUNT=int(YEARLY[i]/100000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in YEARLY) {if (YEARLY[i] >MAXX) {MAXX=YEARLY[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in YEARLY) {COUNT=YEARLY[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
+
 }
 
 districts () {
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNTRIES["None"]=0} NR==1{next} $6==""{COUNTRIES["None"]++} $6!=""{COUNTRIES[$6]+=1}
-     END{if (COUNTRIES["None"]==0) {delete(COUNTRIES["None"])}; for (i in COUNTRIES) print i": "COUNTRIES[i]}' | sort
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+    NR==1{next} $6==""{DISTRICTS["None"]++} $6!=""{DISTRICTS[$6]+=1}
+     END{
+        if (hist==0) {
+        for (i in DISTRICTS) print i": "DISTRICTS[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in DISTRICTS) {COUNT=int(DISTRICTS[i]/1000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in DISTRICTS) {if (DISTRICTS[i] >MAXX) {MAXX=DISTRICTS[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in DISTRICTS) {COUNT=DISTRICTS[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
 }
 
 regions () {
-    echo -e "$FILE" | awk -F, 'BEGIN{COUNTRIES["None"]=0} NR==1{next} $5==""{COUNTRIES["None"]++} $5!=""{COUNTRIES[$5]+=1}
-     END{if (COUNTRIES["None"]==0) {delete(COUNTRIES["None"])}; for (i in COUNTRIES) print i": "COUNTRIES[i]}' | sort
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+    NR==1{next} $5==""{REGIONS["None"]++} $5!=""{REGIONS[$5]+=1}
+     END{
+        if (hist==0) {
+        for (i in REGIONS) print i": "REGIONS[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in REGIONS) {COUNT=int(REGIONS[i]/10000); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in REGIONS) {if (REGIONS[i] >MAXX) {MAXX=REGIONS[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in REGIONS) {COUNT=REGIONS[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
+}
+
+countries () {
+    echo -e "$FILE" | awk -F, -v hist="$HIST" -v max="${FILTERS[width]}" '
+    NR==1{next} $7!="" && $8=="CZ"{next}; $8!="" && $7!=""{COUNTRIES[$8]+=1}
+     END{
+        if (hist==0) {
+        for (i in COUNTRIES) print i": "COUNTRIES[i]
+        }
+        else if (hist==1 && max==-1) {
+            for (i in COUNTRIES) {COUNT=int(COUNTRIES[i]/100); HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }
+        else if (hist==1 && max!=-1) {
+            for (i in COUNTRIES) {if (COUNTRIES[i] >MAXX) {MAXX=COUNTRIES[i]}}
+            DIV=MAXX/max; if (DIV==0) {DIV=1}
+            for (i in COUNTRIES) {COUNT=COUNTRIES[i]/DIV; HASH=sprintf("%"COUNT"s",""); gsub(" ","#",HASH); if (COUNT>=1) {HASH = " " HASH}; print i":"HASH}
+        }    
+        }
+        ' | sort
 }
 
 
-argz="" #not needed?
 #look for help 
 while getopts ha:b:g:s: options; do
         case $options in
@@ -253,8 +413,8 @@ for i in "${args[@]}"
 do
 
     if [[ $i == "-h" ]]; then
-        echo "HELP"
-        exit 1
+        HELP
+        exit 0
     fi
 
     if [[ $i == "-a" ]]; then
@@ -272,7 +432,7 @@ do
 
         tmp=$(echo -e "$i" | awk -F, '$0 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
         if [[ $tmp == "" ]]; then
-            echo "Error6"
+            echo "ERROR: Invalid DATE after -a flag" >&2
             exit 1
         fi
         FILTERS[after]=$i
@@ -294,7 +454,7 @@ do
         
         tmp=$(echo -e "$i" | awk -F, '$0 ~ /(^((([0-9][0-9])(([02468][048])|([13579][26]))-02-29)|((([0-9][0-9])([0-9][0-9])))-((((0[0-9])|(1[0-2]))-((0[0-9])|(1[0-9])|(2[0-8])))|((((0[13578])|(1[02]))-31)|(((0[1,3-9])|(1[0-2]))-(29|30)))))$)/{print $0}')
         if [[ $tmp == "" ]]; then
-            echo "Error7"
+            echo "Error: Invalid DATEIME after -b flag" >&2
             exit 1
         fi
         FILTERS[before]=$i
@@ -316,7 +476,7 @@ do
 
         tmp=$(echo -e "$i" | awk -F, '$0 ~ /^[M]{1}$|^[Z]{1}$/{print $0}')
         if [[ $tmp == "" ]]; then
-            echo "Error8"
+            echo "Error: Invalid input after -g flag" >&2
             exit 1
         fi
         FILTERS[gender]=$i
@@ -351,7 +511,7 @@ do
             if [[ $goodinput == 0 ]]; then
                 tmp=$(echo -e "$i" | awk -F, '$0 ~ /^[1-9][0-9]?+$/{print $0}')
                 if [[ "$tmp" == "" ]]; then
-                    echo "Error9"
+                    echo "Error: Only numbers are allowed after the -s flag" >&2
                     exit 1
                 fi
                 FILTERS[width]=$i
@@ -367,7 +527,7 @@ do
     if ! [ -f "$i" ];
     then
         if [ "$FILE" != "" ]; then 
-            echo "Error10"
+            echo "Error: COMMAND must be inputed before the logs" >&2
             exit 1
         fi
         for j in "${!COMMANDS[@]}"
@@ -390,17 +550,17 @@ do
     if [ -f $i ];
     then
         if [[ "$i" == *.csv ]]; then
-            file=$(cat "$i")
+            file=$(cat "$i" | tail -n +2)
             merge > /dev/null
             HEADPRINT=false
         fi
         if [[ "$i" == *.gz ]]; then
-            file=$(gzip -dkc "$i")
+            file=$(gzip -dkc "$i" | tail -n +2)
             merge > /dev/null
             HEADPRINT=false
         fi
         if [[ "$i" == *.bz2 ]]; then
-            file=$(bzip2 -dkc "$i")
+            file=$(bzip2 -dkc "$i" | tail -n +2)
             merge > /dev/null
             HEADPRINT=false
         fi
@@ -409,11 +569,11 @@ done
 
 if [[ $file == "" ]]; 
 then
-file=$(cat -)
-merge > /dev/null
-validate
-filters
-cross
+    file=$(cat - | awk -F, '$2=="datum"{next} {print $0}')
+    merge > /dev/null
+    validate
+    filters
+    cross
 exit 0
 fi
 
