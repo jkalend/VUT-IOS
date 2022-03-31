@@ -394,8 +394,7 @@ countries () {
 while getopts ha:b:g:s: options; do
         case $options in
                 h) 
-                HELP
-                exit 0
+                continue
                 ;;
 
                 a)
@@ -420,6 +419,13 @@ while getopts ha:b:g:s: options; do
         esac
 done
 
+for i in "${args[@]}"
+do
+    if [[ $i == "-h" ]]; then
+        HELP
+        exit 0
+    fi
+done
 
 for i in "${args[@]}"
 do
@@ -578,6 +584,10 @@ if [[ $file == "" ]];
 then
     file=$(cat - | awk -F, '$2=="datum"{next} {print $0}')
     merge > /dev/null
+    if [[ "$FILE" == "id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs" ]]; then
+        echo -e "$FILE"
+        exit 0
+    fi
     validate
     filters
     cross
