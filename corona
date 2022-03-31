@@ -12,7 +12,7 @@
 
 
 POSIXLY_CORRECT=yes
-LC_ALL=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 
 file=""
@@ -389,6 +389,7 @@ countries () {
 }
 
 
+
 #look for help 
 while getopts ha:b:g:s: options; do
         case $options in
@@ -418,14 +419,16 @@ while getopts ha:b:g:s: options; do
         esac
 done
 
-
 for i in "${args[@]}"
 do
-
     if [[ $i == "-h" ]]; then
         HELP
         exit 0
     fi
+done
+
+for i in "${args[@]}"
+do
 
     if [[ $i == "-a" ]]; then
         AFTER=1
@@ -565,7 +568,7 @@ do
             HEADPRINT=false
         fi
         if [[ "$i" == *.gz ]]; then
-            file=$(gzip -dkc "$i" | tail -n +2)
+            file=$(gzip -dc "$i" | tail -n +2)
             merge > /dev/null
             HEADPRINT=false
         fi
