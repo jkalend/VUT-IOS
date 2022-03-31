@@ -394,7 +394,8 @@ countries () {
 while getopts ha:b:g:s: options; do
         case $options in
                 h) 
-                continue
+                HELP
+                exit 0
                 ;;
 
                 a)
@@ -419,13 +420,6 @@ while getopts ha:b:g:s: options; do
         esac
 done
 
-for i in "${args[@]}"
-do
-    if [[ $i == "-h" ]]; then
-        HELP
-        exit 0
-    fi
-done
 
 for i in "${args[@]}"
 do
