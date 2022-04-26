@@ -85,8 +85,9 @@ init_clear:
 /// \param shm general shared memory
 /// \param fp stream for output
 /// \param ti time to wait between before going to queue
+/// \param pids array of pids needed to be freed in the child process
 /// \return 0 on success, -1 on failure of fork()
-pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti) {
+pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti, pid_t *pids) {
 	pid_t control = fork();
 	if (control == 0) { //child process
 		sem_wait(&sem[3]);
@@ -140,6 +141,8 @@ pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti) {
 		sem_post(&sem[5]); //signals the oxygen that the hydrogen is done
 
 		//exit the child process
+		fclose(fp);
+		free(pids);
 		exit(0);
 	} else if (control == -1) {
 		fprintf(stderr, "Forking failed\n");
@@ -156,8 +159,9 @@ pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti) {
 /// \param fp stream for output
 /// \param ti time to wait between before going to queue
 /// \param tb time to wait to simulate bind
+/// \param pids array of pids needed to be freed in the child process
 /// \return 0 on success, -1 on failure of fork()
-pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb) {
+pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t *pids) {
 	pid_t control = fork();
 	if (control == 0) { //child process
 		sem_wait(&sem[3]);
@@ -220,6 +224,8 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb) {
 
 		sem_post(&sem[0]);
 		// exit the child process
+		fclose(fp);
+		free(pids);
 		exit(0);
 	} else if (control == -1) {
 		fprintf(stderr, "Forking failed\n");
@@ -333,7 +339,7 @@ int main (int argc, char *argv[]) {
 	int cnt = 0;
 	for (long i = 0; i < size; i++) {
 		if (i < no) {
-			pids[cnt] = oxygen(sem, shm, fp, ti, tb);
+			pids[cnt] = oxygen(sem, shm, fp, ti, tb, pids);
 			if (pids[cnt] == -1) {
 				cnt--; // to prevent -1 in kill()
 				goto exit;
@@ -341,7 +347,7 @@ int main (int argc, char *argv[]) {
 			cnt++;
 		}
 		if (i < nh) {
-			pids[cnt] = hydrogen(sem, shm, fp, ti);
+			pids[cnt] = hydrogen(sem, shm, fp, ti, pids);
 			if (pids[cnt] == -1) {
 				cnt--; // to prevent -1 in kill()
 				goto exit;
