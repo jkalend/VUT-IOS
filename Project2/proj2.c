@@ -24,9 +24,10 @@
 #define MOLECULE_COUNT 3
 #define NH_OREQ 4
 #define NO_HREQ 5
+#define MOLECULE_MAX 6
 
 
-#define SEM_COUNT 6
+#define SEM_COUNT 7
 
 /// Initialization of shared memory
 /// \param shm shared memory
@@ -39,6 +40,7 @@ void init_mem(int *shm, const int nh, const int no) {
 	shm[MOLECULE_COUNT] = 0; // counts the number of molecules
 	shm[NH_OREQ] = 2*no; // number of oxygen atoms required to make one molecule (doubled)
 	shm[NO_HREQ] = nh; // number of hydrogen atoms required for one oxygen atom to make one molecule
+	shm[MOLECULE_MAX] = 0; // maximum number of molecules
 }
 
 /// Checks whether the semaphores are initialized correctly
@@ -86,7 +88,7 @@ init_clear:
 /// \param fp stream for output
 /// \param ti time to wait between before going to queue
 /// \param pids array of pids needed to be freed in the child process
-/// \return 0 on success, -1 on failure of fork()
+/// \return pid of the child process on success, -1 on failure
 pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti, pid_t *pids) {
 	pid_t control = fork();
 	if (control == 0) { //child process
@@ -108,28 +110,38 @@ pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti, pid_t *pids) {
 		fprintf(fp, "%d: H %d: going to queue\n", shm[COUNTER], id);
 		fflush(fp);
 		INCC
-		shm[NH_OREQ]--;
+		//shm[NH_OREQ]--;
 
-		if (shm[NH_OREQ] < 0 || (shm[NH_OREQ] <= 1 && shm[NO_HREQ] < 0) || (shm[NO_HREQ] == 1 &&
-																			shm[NH_OREQ] <= 1)) {
-			fprintf(fp, "%d: H %d: not enough O or H\n", shm[COUNTER], id);
-			fflush(fp);
-			INCC
-			sem_post(&sem[3]);
-			exit(1);
-		}
 		sem_post(&sem[3]);
 
 		sem_post(&sem[1]); //signals arrival of hydrogen for the molecule creation
 		sem_wait(&sem[2]); //waits for oxygen to start binding
 
-		int mol = shm[MOLECULE_COUNT]; //sets the molecule id for the hydrogen
+		int mol = shm[MOLECULE_COUNT]+1; //sets the molecule id for the hydrogen
+
+		sem_wait(&sem[3]);
+		if (shm[MOLECULE_COUNT] == shm[MOLECULE_MAX]) {
+
+			sem_post(&sem[3]);
+			sem_wait(&sem[6]); // waits for the last molecule to be created
+			sem_wait(&sem[3]);
+			fprintf(fp, "%d: H %d: not enough O or H\n", shm[COUNTER], id);
+			fflush(fp);
+			INCC
+			sem_post(&sem[6]);
+			sem_post(&sem[2]);
+			sem_post(&sem[3]);
+			exit(1);
+		}
+		sem_post(&sem[3]);
+
 
 		sem_wait(&sem[3]);
 		fprintf(fp, "%d: H %d: creating molecule %d\n", shm[COUNTER], id, mol);
 		fflush(fp);
 		INCC
 		sem_post(&sem[3]);
+		sem_post(&sem[5]);
 
 
 		sem_wait(&sem[4]); //waits for the oxygen to bind
@@ -160,7 +172,7 @@ pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti, pid_t *pids) {
 /// \param ti time to wait between before going to queue
 /// \param tb time to wait to simulate bind
 /// \param pids array of pids needed to be freed in the child process
-/// \return 0 on success, -1 on failure of fork()
+/// \return pid of the child process on success, -1 on failure
 pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t *pids) {
 	pid_t control = fork();
 	if (control == 0) { //child process
@@ -183,9 +195,14 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t
 
 		shm[NO_HREQ] -= 2;
 		if (shm[NO_HREQ] < 0) {
+			sem_post(&sem[3]);
+			sem_wait(&sem[6]); //waits for the last molecule
+			sem_wait(&sem[3]);
 			fprintf(fp, "%d: O %d: not enough H\n", shm[COUNTER], id);
 			fflush(fp);
 			INCC
+			sem_post(&sem[6]);
+			sem_post(&sem[2]);
 			sem_post(&sem[3]);
 			exit(1);
 		}
@@ -197,11 +214,11 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t
 		sem_wait(&sem[1]); // waits for 2 hydrogen atoms
 		sem_wait(&sem[1]);
 
-		shm[MOLECULE_COUNT]++;
+
 		sem_post(&sem[2]); // release 2 hydrogen atoms
 		sem_post(&sem[2]);
 
-		int mol = shm[MOLECULE_COUNT];
+		int mol = shm[MOLECULE_COUNT]+1;
 
 		sem_wait(&sem[3]);
 		fprintf(fp, "%d: O %d: creating molecule %d\n", shm[COUNTER], id, mol);
@@ -211,6 +228,9 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t
 
 		usleep(random()%(tb+1) * 1000);
 
+		sem_wait(&sem[5]);
+		sem_wait(&sem[5]);
+
 		sem_wait(&sem[3]);
 		sem_post(&sem[4]); // signals the hydrogen to print the molecule is created
 		sem_post(&sem[4]); // 2 hydrogen atoms are signaled
@@ -219,8 +239,17 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t
 		INCC
 		sem_post(&sem[3]);
 
+		sem_wait(&sem[3]);
+		shm[MOLECULE_COUNT]++;
+		sem_post(&sem[3]);
+
 		sem_wait(&sem[5]); // holds the oxygen until the molecule is finished
 		sem_wait(&sem[5]); // waits for the hydrogen atoms to finish
+
+		if (shm[MOLECULE_COUNT] == shm[MOLECULE_MAX]) {
+			sem_post(&sem[6]); // signals the leftover atoms to exit
+			sem_post(&sem[2]); // frees any leftover hydrogen atoms
+		}
 
 		sem_post(&sem[0]);
 		// exit the child process
@@ -322,7 +351,8 @@ int main (int argc, char *argv[]) {
 	// [3] to protect the critical sections, starts at 1,
 	// [4] for order of output, starts at 0,
 	// [5] for oxygen atom to wait for hydrogen atoms to finish, starts at 0,
-	int check = init_sems(&sem, SEM_COUNT, (int[]){1, 0, 0, 1, 0, 0}, 0);
+	// [6] for "not enough" messages, holds all overflowing atoms, starts at 0,
+	int check = init_sems(&sem, SEM_COUNT, (int[]){1, 0, 0, 1, 0, 0, 0}, 0);
 	if (check == 1)
 		goto exit;
 
@@ -333,6 +363,21 @@ int main (int argc, char *argv[]) {
 		size = no;
 	}
 
+	long h = nh;
+	long o = no;
+	for (long i = 0; i < no; i++) {
+		if (h <= 1 || o < 0) {
+			break;
+		} else {
+			shm[MOLECULE_MAX]++;
+			h -= 2;
+			o -= 1;
+		}
+	}
+
+	if (shm[MOLECULE_MAX] == 0) {
+		sem_post(&sem[6]);
+	}
 	// fork the process in loop to create the number of oxygen atoms and hydrogen atoms
 	// stores the pid of the process in the pids array
 	// cnt is used to keep track of the number of processes created
