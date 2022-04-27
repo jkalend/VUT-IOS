@@ -127,6 +127,8 @@ pid_t hydrogen(sem_t *sem, int *shm, FILE *fp, const long ti, pid_t *pids) {
 			sem_wait(&sem[3]);
 			fprintf(fp, "%d: H %d: not enough O or H\n", shm[COUNTER], id);
 			fflush(fp);
+			fclose(fp);
+			free(pids);
 			INCC
 			sem_post(&sem[6]);
 			sem_post(&sem[2]);
@@ -200,6 +202,8 @@ pid_t oxygen(sem_t *sem, int *shm, FILE *fp, const long ti, const long tb, pid_t
 			sem_wait(&sem[3]);
 			fprintf(fp, "%d: O %d: not enough H\n", shm[COUNTER], id);
 			fflush(fp);
+			fclose(fp);
+			free(pids);
 			INCC
 			sem_post(&sem[6]);
 			sem_post(&sem[2]);
