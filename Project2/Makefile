@@ -11,3 +11,6 @@ proj2.o: proj2.c
 
 clean:
 	rm -f proj2.o proj2
+
+zip:
+	zip proj2.zip *.c Makefile
